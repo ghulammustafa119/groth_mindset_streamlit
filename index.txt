@@ -1,0 +1,400 @@
+Yeh Streamlit app ek "Data Sweeper" hai jo CSV aur Excel files ko process, clean, visualize aur convert kar sakta hai. Chaliye, is code ka breakdown Urdu mein samajhte hain:
+
+
+🔹 Code Ka Overview
+Yeh Streamlit app:
+✔ CSV aur Excel files ko upload karne ka option deta hai.
+✔ Data ko clean karta hai (duplicate remove, missing values fill).
+✔ Visualization karta hai (graphs & charts).
+✔ CSV ko Excel aur Excel ko CSV me convert karne ka option deta hai.
+✔ Download button deta hai jisse user cleaned aur converted file download kar sakta hai.
+
+
+1️⃣ Basic Setup (Imports & Configuration)
+
+import streamlit as st
+import pandas as pd
+import os
+from io import BytesIO
+
+🔹 Streamlit (st) - Web app banane ke liye
+🔹 Pandas (pd) - Data handling ke liye
+🔹 OS Module (os) - File extensions handle karne ke liye
+🔹 BytesIO - Files ko memory me store karne ke liye
+
+
+st.set_page_config(page_title="Data Sweeper", layout='wide')
+st.title("Data Sweeper")
+st.write("Transform your files between CSV and Excel formats with built-in data cleaning and visualization!")
+
+🔹 Yeh Streamlit ka UI setup hai.
+🔹 App ka title "Data Sweeper" set kiya gaya hai.
+🔹 Ek chhoti si description di gayi hai.
+
+2️⃣ File Upload System
+
+uploaded_files = st.file_uploader("Upload your files (CSV or Excel):", type=["csv", "xlsx"], accept_multiple_files=True)
+
+🔹 User CSV ya Excel file upload kar sakta hai.
+🔹 accept_multiple_files=True ka matlab hai ke ek se zyada files bhi upload ho sakti hain.
+
+3️⃣ File Processing & Display
+
+if uploaded_files:
+    for file in uploaded_files:
+        file_ext = os.path.splitext(file.name)[-1].lower()
+
+🔹 Har file ka extension check kiya jata hai (.csv ya .xlsx).
+
+
+        if file_ext == ".csv":
+            df = pd.read_csv(file)
+        elif file_ext == ".xlsx":
+            df = pd.read_excel(file)
+        else:
+            st.error(f"Unsupported file type: {file_ext}")
+            continue
+
+🔹 CSV file ko Pandas pd.read_csv() se load kiya jata hai.
+🔹 Excel file ko pd.read_excel() se load kiya jata hai.
+🔹 Agar unsupported file ho, to error show hoti hai.
+
+
+file_size_kb = len(file.getvalue()) / 1024
+st.write(f"**File Name:** {file.name}")
+st.write(f"**File Size:** {file_size_kb:.2f} KB")
+
+🔹 File ka naam aur uska size (KB me) show kiya jata hai.
+
+
+st.write("Preview the Head of the Dataframe")
+st.dataframe(df.head())
+
+🔹 File ka pehla kuch data preview ke liye dikhaya jata hai.
+
+4️⃣ Data Cleaning Options
+
+st.subheader("Data Cleaning Options")
+if st.checkbox(f"Clean Data for {file.name}"):
+
+🔹 Checkbox option diya gaya hai taake user cleaning options enable kar sake.
+
+
+col1, col2 = st.columns(2)
+
+🔹 UI ko 2 columns me divide kiya gaya hai.
+
+
+with col1:
+    if st.button(f"Remove Duplicates from {file.name}", key=f"remove_dup_{file.name}"):
+        df.drop_duplicates(inplace=True)
+        st.write("✅ Duplicates Removed!")
+        st.dataframe(df.head())
+
+🔹 Duplicate rows hataane ka button diya gaya hai.
+🔹 Agar button click hota hai, to df.drop_duplicates() se duplicate rows remove hoti hain.
+
+
+with col2:
+    if st.button(f"Fill Missing Values for {file.name}", key=f"fill_na_{file.name}"):
+        numeric_cols = df.select_dtypes(include=['number']).columns
+        df[numeric_cols] = df[numeric_cols].fillna(df[numeric_cols].mean())
+        st.write("✅ Missing Values Filled!")
+        st.dataframe(df.head())
+
+🔹 Missing values ko fill karne ka button hai.
+🔹 Numerical columns ko mean() value se fill kiya jata hai.
+
+5️⃣ Columns Select Karna
+
+st.subheader("Select Columns to Convert")
+columns = st.multiselect(f"Choose Columns for {file.name}", df.columns, default=df.columns)
+df = df[columns]
+
+🔹 User select kar sakta hai ke kaunse columns rakhne hain.
+🔹 st.multiselect() se dropdown menu diya gaya hai.
+
+6️⃣ Data Visualization
+
+st.subheader("Data Visualization")
+if st.checkbox(f"Show Visualization for {file.name}"):
+    num_cols = df.select_dtypes(include='number')
+    if not num_cols.empty and num_cols.shape[1] > 1:
+        st.bar_chart(num_cols.iloc[:, :2])
+    else:
+        st.warning("Not enough numeric data for visualization!")
+
+🔹 Checkbox diya gaya hai jo enable karne par graphs dikhata hai.
+🔹 Bar chart sirf numerical columns ke liye show hota hai.
+🔹 Agar numerical data nahi hai, to warning show hoti hai.
+
+7️⃣ File Conversion (CSV ⇄ Excel)
+
+st.subheader("Conversion Options")
+conversion_type = st.radio(f"Convert {file.name} to:", ["CSV", "Excel"], key=f"convert_{file.name}")
+
+🔹 Radio button diya gaya hai jisme user file ko CSV ya Excel me convert kar sakta hai.
+
+
+if st.button(f"Convert {file.name}", key=f"convert_btn_{file.name}"):
+    buffer = BytesIO()
+    if conversion_type == "CSV":
+        df.to_csv(buffer, index=False)
+        file_name = file.name.replace(file_ext, ".csv")
+        mime_type = "text/csv"
+
+    elif conversion_type == "Excel":
+        with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+            df.to_excel(writer, index=False)
+        file_name = file.name.replace(file_ext, ".xlsx")
+        mime_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+    buffer.seek(0)
+
+🔹 File ko convert karne ka logic likha gaya hai.
+🔹 Memory me file store hoti hai (BytesIO()).
+
+
+st.download_button(
+    label=f"Download {file.name} as {conversion_type}",
+    data=buffer,
+    file_name=file_name,
+    mime=mime_type
+)
+
+🔹 Download button diya gaya hai jo converted file ko download karne ka option deta hai.
+
+8️⃣ Final Success Message
+
+st.success("All files processed! 🎉")
+
+🔹 Sab kuch process hone ke baad success message show hota hai.
+
+✅ Summary
+
+✔ File Upload -> CSV ya Excel file upload hoti hai.
+✔ Data Cleaning -> Duplicate remove, missing values fill.
+✔ Data Visualization -> Graphs show hote hain.
+✔ File Conversion -> CSV ko Excel ya Excel ko CSV me convert kar sakte hain.
+✔ Download -> Converted file download kar sakte hain.
+
+🔥 Yeh ek powerful data processing tool hai jo data cleaning, visualization aur conversion ek saath karta hai! 🚀
+===============================================================================================
+Python ke jo built-in ya Pandas ke functions is app me use ho rahe hain, unka step-by-step breakdown yeh hai:
+
+
+1️⃣ st.set_page_config()
+
+st.set_page_config(page_title="Data Sweeper", layout='wide')
+
+🔹 Streamlit ki UI ko customize karta hai.
+🔹 page_title="Data Sweeper" -> Browser tab ka title set karta hai.
+🔹 layout='wide' -> Page ko full-screen wide mode me dikhata hai.
+-------------------------------------------------------------------
+2️⃣ st.title()
+
+st.title("Data Sweeper")
+
+🔹 App ka main title show karta hai.
+🔹 Yeh bold aur large font size me likha hota hai.
+--------------------------------------------------------------------
+3️⃣ st.write()
+
+st.write("Transform your files between CSV and Excel formats with built-in data cleaning and visualization!")
+
+🔹 Text ko print karne ke liye use hota hai.
+🔹 Yeh markdown, tables, aur Pandas DataFrame ko bhi show kar sakta hai.
+---------------------------------------------------------------------------
+4️⃣ st.file_uploader()
+
+uploaded_files = st.file_uploader("Upload your files (CSV or Excel):", type=["csv", "xlsx"], accept_multiple_files=True)
+
+🔹 User CSV ya Excel file upload kar sakta hai.
+🔹 type=["csv", "xlsx"] -> Sirf CSV aur Excel files accept karega.
+🔹 accept_multiple_files=True -> User ek se zyada files upload kar sakta hai.
+-------------------------------------------------------------------------------
+5️⃣ os.path.splitext()
+
+file_ext = os.path.splitext(file.name)[-1].lower()
+
+🔹 File ka extension check karne ke liye use hota hai.
+🔹 Example: "data.xlsx" ka result ".xlsx" hoga.
+🔹 lower() -> Uppercase extension ko lowercase me convert karta hai.
+----------------------------------------------------------------------------------
+6️⃣ pd.read_csv()
+
+df = pd.read_csv(file)
+
+🔹 CSV file ko Pandas DataFrame me load karta hai.
+🔹 Example:
+CSV file:
+
+
+Name,               Age
+Ali,                23
+Ayesha,             30
+
+Result:
+-----------------------
+Name	   |         Age
+-----------------------
+Ali	       |         23
+-----------------------
+Ayesha	   |         30
+-----------------------
+-----------------------------------------------------------------------------
+7️⃣ pd.read_excel()
+
+df = pd.read_excel(file)
+🔹 Excel (.xlsx) file ko Pandas DataFrame me convert karta hai.
+
+⚠ Error Solution:
+Agar engine error aaye, to "openpyxl" ya "xlrd" install karna hoga:
+
+pip install openpyxl
+pip install xlrd
+------------------------------------------------------------------------------
+8️⃣ len(file.getvalue()) / 1024
+
+file_size_kb = len(file.getvalue()) / 1024
+
+🔹 File ka size KB me nikalne ke liye.
+🔹 file.getvalue() -> File ka binary data return karta hai.
+🔹 len() -> Total bytes count karta hai.
+🔹 / 1024 -> Bytes ko KB me convert karta hai.
+---------------------------------------------------------------------------
+9️⃣ df.head()
+
+st.dataframe(df.head())
+
+🔹 DataFrame ke sirf pehle 5 rows dikhata hai.
+🔹 Example:
+df.head(3)  # 3 rows dikhayega
+------------------------------------------------------------------------
+🔟 df.drop_duplicates()
+
+df.drop_duplicates(inplace=True)
+
+🔹 Duplicate rows hataata hai.
+🔹 inplace=True -> Original DataFrame ko modify karta hai.
+🔹 Example:
+
+Before:
+-------
+Name	       |           Age
+------------------------------
+Ali	           |           23
+------------------------------
+Ayesha	       |           30
+------------------------------
+Ali	           |           23
+------------------------------
+
+After drop_duplicates():
+-----------------------
+Name	       |            Age
+------------------------------
+Ali	           |            23
+------------------------------
+Ayesha	       |            30
+------------------------------
+-----------------------------------------------------------------------
+1️⃣1️⃣ df.fillna()
+
+numeric_cols = df.select_dtypes(include=['number']).columns
+df[numeric_cols] = df[numeric_cols].fillna(df[numeric_cols].mean())
+
+🔹 Missing values (NaN) ko fill karta hai.
+🔹 Sirf numerical columns select kiye gaye hain (select_dtypes(include=['number'])).
+🔹 Mean (average) value se missing values replace hoti hain.
+
+Example:
+
+Before:
+
+Name	       |              Age
+--------------------------------
+Ali	           |              23
+--------------------------------
+Ayesha	       |              NaN
+--------------------------------
+Sara	       |              29
+--------------------------------
+
+After fillna(df.mean()):
+
+Name	       |               Age
+---------------------------------
+Ali	           |               23
+---------------------------------
+Ayesha	       |               26
+---------------------------------
+Sara	       |               29
+---------------------------------
+----------------------------------------------------------------------------------
+1️⃣2️⃣ st.multiselect()
+
+columns = st.multiselect(f"Choose Columns for {file.name}", df.columns, default=df.columns)
+df = df[columns]
+
+🔹 User choose kar sakta hai kaunse columns rakhne hain.
+🔹 df = df[columns] -> Sirf selected columns save hote hain.
+
+Example:
+Agar user sirf Name column select kare, to sirf wahi column dikhai dega.
+---------------------------------------------------------------------------------------
+1️⃣3️⃣ st.bar_chart()
+
+num_cols = df.select_dtypes(include='number')
+if not num_cols.empty and num_cols.shape[1] > 1:
+    st.bar_chart(num_cols.iloc[:, :2])
+
+🔹 Numerical data ka bar chart dikhata hai.
+🔹 df.iloc[:, :2] -> Sirf pehle 2 columns chart me dikhata hai.
+🔹 Agar numeric data nahi hai, to st.warning() show hoti hai.
+-------------------------------------------------------------------------------------
+1️⃣4️⃣ pd.ExcelWriter()
+
+with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+    df.to_excel(writer, index=False)
+
+🔹 DataFrame ko Excel me convert karta hai.
+🔹 engine="openpyxl" -> Excel format handle karta hai.
+🔹 index=False -> Index column save nahi hota.
+----------------------------------------------------------------------------------------
+1️⃣5️⃣ st.download_button()
+
+st.download_button(
+    label=f"Download {file.name} as {conversion_type}",
+    data=buffer,
+    file_name=file_name,
+    mime=mime_type
+)
+
+🔹 Converted file download karne ke liye button banata hai.
+🔹 data=buffer -> Converted file memory se read ki jati hai.
+🔹 file_name -> Downloaded file ka naam set karta hai.
+🔹 mime_type -> File ka MIME type set karta hai (text/csv ya application/vnd.openxmlformats-officedocument.spreadsheetml.sheet).
+-------------------------------------------------------------------------------
+✅ Summary
+
+Function	                                            Purpose
+------------------------------------------------------------------------------------
+st.set_page_config()	     |         Page ka layout aur title set karta hai
+st.file_uploader()	         |         User se CSV/Excel file upload karwata hai
+pd.read_csv()	             |         CSV file ko DataFrame me convert karta hai
+pd.read_excel()	             |         Excel file ko DataFrame me convert karta hai
+df.drop_duplicates()	     |         Duplicate rows remove karta hai
+df.fillna(df.mean())	     |         Missing values ko mean se fill karta hai
+st.bar_chart()	             |         Data ka bar chart banata hai
+pd.ExcelWriter()	         |         Data ko Excel file me save karta hai
+st.download_button()	     |         User ko converted file download karne ka option deta hai
+-----------------------------------------------------------------------------------------
+🚀 Is app me yeh sare functions milkar ek powerful Data Processing Tool banate hain! 🎉
+
+
+
+
+
+
+
